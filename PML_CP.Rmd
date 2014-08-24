@@ -1,0 +1,87 @@
+---
+title: "Predicting human activity from data"
+author: "sidd"
+date: "Sunday 24 August 2014"
+output: html_document
+---
+##Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify `how well they do it`. In this analysis, we will be using data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:[http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset). 
+The goal is to predict the manner in which an activity is performed using the ‘classes’ variable in the training set.  
+
+##Data
+
+The training data for this project are available here: 
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) 
+The test data are available here: 
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)  
+The data for this project come from this source: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).  
+
+##Summary
+A model is build using training dataset only.To perform fitting and validation the training data is processed to `trainin_tidy` and partitioned into `subtraining` and `subtesting` respectively.
+The model is built on this clean `subtraining` and cross validation is explained on `subtesting` with about 97% accuracy along with the expected out of error sample and the choice of model fit.Finally, model is used to predict classes on the `training` dataset with 20 test cases.  
+
+##Preprocessing Data
+```{r}
+##Load Data and handle the NAs
+training<-read.csv("pml-training.csv",na.string=c(NA,""," "))
+testing<-read.csv("pml-testing.csv",na.string=c(NA,""," "))
+
+## view(training) was used to browse through the columns
+## training set contains 19622 obs.
+## removing first column (index)
+training<-training[,-1]
+testing<-testing[,-1]
+
+paste0("Cleaning Data")
+##removing NAs from training
+trainingNA <- apply(training,2,function(x) {sum(is.na(x))})
+training_tidy <- training[,which(trainingNA ==0)]
+
+##removing irrelevant columns named:
+names(training_tidy[,1:7])
+training_tidy<-training_tidy[,8:dim(training_tidy)[2]]
+```
+##Partioning training set 
+```{r}
+library(caret)
+## split by 75% classe into training and testing sets
+inTrain<-createDataPartition(y=training_tidy$classe,p=0.75,list=F)
+subtraining<-training_tidy[inTrain,]
+subtesting<-training_tidy[-inTrain,]
+```
+##Model
+Using `gbm` method for fitting and `repeatedcv` method for crossvalidation and `classe` as response
+```{r}
+fitCTRL<-trainControl(method="repeatedcv",number = 2 , repeats = 2)
+fit<-train(classe~.,data=subtraining,method="gbm",trControl = fitCTRL,verbose=F)
+fit
+```
+##Cross Validation and out of sample error(testing subset)
+```{r}
+pred<-predict(fit,subtesting)
+conf<-confusionMatrix(pred,subtesting$classe)
+conf$table
+accuracy<-postResample(pred,subtesting$classe)[[1]]
+Outsampler<- (1-accuracy)*100
+Outsampler
+paste("ACCURACY",round(accuracy*100,2),"%")
+```
+##Application to Actual test data set
+###Preprocessing test dataset
+```{r}
+#removing NAs from training
+testingNA <- apply(testing,2,function(x) {sum(is.na(x))})
+testing_tidy <- testing[,which(testingNA ==0)]
+
+##removing irrelevant columns named:
+names(testing_tidy[,1:7])
+testing_tidy<-testing_tidy[,8:dim(testing_tidy)[2]]
+##check dimensions
+dim(testing_tidy)
+```
+##Predict Using Model
+```{r}
+PredictModel<-predict(fit,testing_tidy)
+PredictModel
+```
+
